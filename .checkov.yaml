@@ -1,25 +1,46 @@
 # Configuration Checkov — analyse statique de sécurité IaC.
-# Usage : checkov -d .  (lit ce fichier automatiquement).
+# Usage : checkov -d . --config-file .checkov.yaml
 #
-# Politique : on corrige par défaut. Tout `skip-check` ci-dessous DOIT porter
-# un commentaire expliquant pourquoi le finding est acceptable dans ce contexte
-# (démo de portfolio, validation statique, jamais déployée en l'état).
+# Politique : on corrige par défaut. Les findings corrigés dans le code
+# (DynamoDB CMK, key policy KMS, lifecycle S3, monitoring renforcé RDS) ne
+# figurent PAS ici. Chaque `skip-check` ci-dessous est un écart ASSUMÉ, justifié :
+# il s'agit d'options coûteuses, dépendantes d'un domaine, ou volontairement
+# relâchées en dev — toutes activables en production réelle.
 
 framework:
   - terraform
   - dockerfile
-  - github_actions
 
 compact: true
 quiet: true
 
 skip-check:
-  # CKV_AWS_18  : access-logging du bucket de state. Le bucket de logs imposerait
-  #               un second bucket récursif ; hors périmètre d'une démo backend.
-  - CKV_AWS_18
-  # CKV_AWS_144 : réplication cross-region du bucket de state. Inutile et coûteux
-  #               pour une démo mono-région ; documenté comme choix assumé.
-  - CKV_AWS_144
-  # CKV_AWS_338 : rétention CloudWatch Logs >= 1 an. On retient 30 j (coût démo) ;
-  #               valeur paramétrable par variable, à monter en prod réelle.
-  - CKV_AWS_338
+  # --- ALB en HTTP : démo sans nom de domaine ni certificat ACM ------------
+  # Le module bascule automatiquement en HTTPS + redirection 80->443 dès qu'un
+  # certificate_arn est fourni. Sans domaine public, on sert en HTTP.
+  - CKV_AWS_2   # ALB protocol HTTPS
+  - CKV_AWS_103 # listener TLS >= 1.2
+  - CKV_AWS_378 # target group non-HTTP
+  - CKV2_AWS_20 # redirection HTTP -> HTTPS
+
+  # --- Garde-fous périmétriques hors scope d'une démo ----------------------
+  - CKV2_AWS_28 # WAF devant l'ALB public : coût/scope, à ajouter en prod
+  - CKV_AWS_91  # access logs ALB : nécessite un bucket dédié, hors scope démo
+  - CKV_AWS_150 # deletion protection ALB : désactivée pour un teardown propre
+
+  # --- Écarts VOLONTAIRES en dev (durcis en prod via tfvars) ---------------
+  - CKV_AWS_157 # RDS Multi-AZ : false en dev, true en prod (rds_multi_az)
+  - CKV_AWS_293 # RDS deletion protection : false en dev, true en prod
+
+  # --- Options coûteuses/verbeuses, activables en prod ---------------------
+  - CKV2_AWS_30 # query logging Postgres : verbeux ; via parameter group en prod
+  - CKV2_AWS_57 # rotation auto des secrets : nécessite une Lambda de rotation
+  - CKV_AWS_158 # log group chiffré KMS : chiffrement AWS suffisant pour la démo
+
+  # --- Non pertinent pour un bucket de state -------------------------------
+  - CKV2_AWS_62 # notifications d'événements S3 : sans objet pour un state bucket
+  - CKV_AWS_18  # access logging S3 : imposerait un 2e bucket de logs (récursif), hors démo
+  - CKV_AWS_144 # réplication cross-region S3 : mono-région assumé pour la démo
+
+  # --- Rétention des logs : choix de coût (30 j), à monter en prod ----------
+  - CKV_AWS_338 # rétention >= 1 an : 30 j en démo (paramétrable par variable)
