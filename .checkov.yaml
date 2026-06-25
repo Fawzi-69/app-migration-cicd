@@ -1,0 +1,25 @@
+# Configuration Checkov — analyse statique de sécurité IaC.
+# Usage : checkov -d .  (lit ce fichier automatiquement).
+#
+# Politique : on corrige par défaut. Tout `skip-check` ci-dessous DOIT porter
+# un commentaire expliquant pourquoi le finding est acceptable dans ce contexte
+# (démo de portfolio, validation statique, jamais déployée en l'état).
+
+framework:
+  - terraform
+  - dockerfile
+  - github_actions
+
+compact: true
+quiet: true
+
+skip-check:
+  # CKV_AWS_18  : access-logging du bucket de state. Le bucket de logs imposerait
+  #               un second bucket récursif ; hors périmètre d'une démo backend.
+  - CKV_AWS_18
+  # CKV_AWS_144 : réplication cross-region du bucket de state. Inutile et coûteux
+  #               pour une démo mono-région ; documenté comme choix assumé.
+  - CKV_AWS_144
+  # CKV_AWS_338 : rétention CloudWatch Logs >= 1 an. On retient 30 j (coût démo) ;
+  #               valeur paramétrable par variable, à monter en prod réelle.
+  - CKV_AWS_338
