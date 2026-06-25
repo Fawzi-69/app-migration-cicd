@@ -1,0 +1,100 @@
+# ---------------------------------------------------------------------------
+# Étape deploy : Terraform plan/apply par environnement, via OIDC.
+#   - plan  : exécuté en merge request et sur la branche (revue du diff infra)
+#   - apply : GATÉ SUR LA BRANCHE
+#       * dev  -> branche `dev`  (automatique)
+#       * prod -> branche `main` (manuel, double validation)
+# Le tag d'image déployé = SHA du commit : traçabilité build -> déploiement.
+# Le déploiement applicatif découle de l'apply (nouvelle task definition +
+# mise à jour du service ECS).
+# ---------------------------------------------------------------------------
+
+.terraform_base:
+  image:
+    name: hashicorp/terraform:1.9
+    entrypoint: [""]
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: "$AWS_OIDC_AUD"
+  before_script:
+    - echo "$GITLAB_OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+    - cd "infra/terraform/environments/${TF_ENV}"
+    # Backend partiel : bucket/table/région injectés ici (aucun nom en dur).
+    - terraform init -input=false
+      -backend-config="bucket=${TF_STATE_BUCKET}"
+      -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+      -backend-config="region=${AWS_DEFAULT_REGION}"
+
+.plan_script: &plan_script
+  - terraform plan -input=false -out=plan.tfplan
+    -var="image_tag=${IMAGE_TAG}"
+    -var="state_bucket_name=${TF_STATE_BUCKET}"
+    -var="lock_table_name=${TF_LOCK_TABLE}"
+
+# ----------------------------- DEV -----------------------------------------
+plan_dev:
+  stage: deploy
+  extends: .terraform_base
+  variables:
+    TF_ENV: "dev"
+    AWS_ROLE_ARN: "$AWS_ROLE_ARN_DEV"
+  script: *plan_script
+  artifacts:
+    paths:
+      - infra/terraform/environments/dev/plan.tfplan
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+
+apply_dev:
+  stage: deploy
+  extends: .terraform_base
+  variables:
+    TF_ENV: "dev"
+    AWS_ROLE_ARN: "$AWS_ROLE_ARN_DEV"
+  script:
+    - terraform apply -input=false -auto-approve plan.tfplan
+  environment:
+    name: dev
+    url: "http://$ALB_DNS_DEV"
+  needs:
+    - job: plan_dev
+      artifacts: true
+  rules:
+    # Apply gaté : uniquement sur la branche dev (jamais en MR).
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+# ----------------------------- PROD ----------------------------------------
+plan_prod:
+  stage: deploy
+  extends: .terraform_base
+  variables:
+    TF_ENV: "prod"
+    AWS_ROLE_ARN: "$AWS_ROLE_ARN_PROD"
+  script: *plan_script
+  artifacts:
+    paths:
+      - infra/terraform/environments/prod/plan.tfplan
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+apply_prod:
+  stage: deploy
+  extends: .terraform_base
+  variables:
+    TF_ENV: "prod"
+    AWS_ROLE_ARN: "$AWS_ROLE_ARN_PROD"
+  script:
+    - terraform apply -input=false -auto-approve plan.tfplan
+  environment:
+    name: prod
+    url: "http://$ALB_DNS_PROD"
+  needs:
+    - job: plan_prod
+      artifacts: true
+  rules:
+    # Apply prod gaté sur main ET manuel (double garde-fou).
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual

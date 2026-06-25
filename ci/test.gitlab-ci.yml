@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# Étape test : tests unitaires Go (vet + tests avec détecteur de course).
+# ---------------------------------------------------------------------------
+
+unit_tests:
+  stage: test
+  image: golang:1.23-alpine
+  variables:
+    CGO_ENABLED: "1" # requis par -race
+  before_script:
+    - apk add --no-cache gcc musl-dev
+  script:
+    - cd app
+    - go vet ./...
+    - go test ./... -race -coverprofile=coverage.out
+    - go tool cover -func=coverage.out
+  coverage: '/total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    paths:
+      - app/coverage.out
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"

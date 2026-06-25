@@ -1,0 +1,45 @@
+# ===========================================================================
+# Pipeline DevSecOps — migration vers AWS (ECS Fargate).
+#
+#   build  -> construit et pousse l'image (Kaniko, sans privilège)
+#   test   -> tests unitaires Go
+#   scan   -> Trivy (image + IaC), Gitleaks (secrets), gosec (SAST)
+#   deploy -> terraform plan/apply, déclenché sur branche, OIDC (zéro clé)
+#
+# Authentification AWS : OIDC pur. Le jeton GitLab est échangé contre des
+# identifiants temporaires via AssumeRoleWithWebIdentity — AUCUNE clé statique
+# n'est stockée dans le projet.
+#
+# Variables CI/CD à définir dans GitLab (Settings > CI/CD > Variables) :
+#   AWS_DEFAULT_REGION   ex. eu-west-3
+#   AWS_OIDC_AUD         ex. https://gitlab.com
+#   ECR_REPOSITORY_URL   ex. <account>.dkr.ecr.eu-west-3.amazonaws.com/app-migration-cicd
+#   TF_STATE_BUCKET      nom du bucket de state (bootstrap)
+#   TF_LOCK_TABLE        nom de la table de verrou (bootstrap)
+#   AWS_ROLE_ARN_DEV     ARN du rôle CI dev   (sortie ci_role_arn de l'env dev)
+#   AWS_ROLE_ARN_PROD    ARN du rôle CI prod  (sortie ci_role_arn de l'env prod)
+# ===========================================================================
+
+stages:
+  - build
+  - test
+  - scan
+  - deploy
+
+variables:
+  # Tag d'image = SHA court du commit (traçabilité build -> déploiement).
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  # Fichier où l'on dépose le jeton OIDC ; consommé par le credential provider AWS.
+  AWS_WEB_IDENTITY_TOKEN_FILE: "${CI_PROJECT_DIR}/.oidc_token"
+
+# Ne lance le pipeline que sur les branches et les merge requests.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+include:
+  - local: ci/build.gitlab-ci.yml
+  - local: ci/test.gitlab-ci.yml
+  - local: ci/security.gitlab-ci.yml
+  - local: ci/deploy.gitlab-ci.yml

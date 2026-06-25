@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# Étape build : construit l'image et la pousse sur ECR avec Kaniko.
+# Kaniko construit sans démon Docker ni privilège (plus sûr que docker:dind).
+# L'authentification ECR se fait via le credential provider AWS "web identity"
+# (jeton OIDC GitLab) : aucune clé statique.
+# ---------------------------------------------------------------------------
+
+build_image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: "$AWS_OIDC_AUD"
+  variables:
+    # Le SDK AWS embarqué dans le helper ECR de Kaniko lit ces deux variables
+    # pour assumer le rôle sans clé statique.
+    AWS_ROLE_ARN: "$AWS_ROLE_ARN_DEV"
+  before_script:
+    - echo "$GITLAB_OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}/app"
+      --dockerfile "${CI_PROJECT_DIR}/app/Dockerfile"
+      --build-arg "APP_VERSION=${IMAGE_TAG}"
+      --destination "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+      --destination "${ECR_REPOSITORY_URL}:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"
