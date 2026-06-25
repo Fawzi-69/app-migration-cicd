@@ -1,0 +1,10 @@
+# N'envoie au démon Docker que le strict nécessaire à la compilation.
+.git
+.gitignore
+*.md
+Dockerfile
+.dockerignore
+bin/
+*.exe
+*.test
+*.out
