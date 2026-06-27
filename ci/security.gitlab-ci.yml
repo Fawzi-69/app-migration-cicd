@@ -15,8 +15,6 @@ trivy_image:
   id_tokens:
     GITLAB_OIDC_TOKEN:
       aud: "$AWS_OIDC_AUD"
-  variables:
-    AWS_ROLE_ARN: "$AWS_ROLE_ARN_DEV"
   before_script:
     - echo "$GITLAB_OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
   script:
@@ -25,7 +23,13 @@ trivy_image:
       --format table
       "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
   rules:
+    # Tire l'image avec le rôle de l'environnement de la branche.
+    - if: $CI_COMMIT_BRANCH == "main"
+      variables:
+        AWS_ROLE_ARN: "$AWS_ROLE_ARN_PROD"
     - if: $CI_COMMIT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        AWS_ROLE_ARN: "$AWS_ROLE_ARN_DEV"
 
 # Scan des mauvaises configurations Terraform (défense en profondeur, complète
 # l'analyse Checkov locale).
