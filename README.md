@@ -116,6 +116,12 @@ make destroy ENV=dev
 > Le pipeline GitLab exécute exactement les mêmes étapes ; le `make` sert au travail local et à
 > reproduire la boucle qualité avant tout commit.
 
+> ⚠️ **Coût & teardown.** Un `apply` réel crée des ressources **facturées**. Ordre de grandeur :
+> dev ≈ **40-60 $/mois** (1 NAT, Fargate ×2, RDS mono-AZ), prod ≈ **150-200 $/mois** (3 NAT,
+> Fargate ×3, RDS multi-AZ, ALB). Pensez à `make destroy ENV=<env>` pour tout supprimer. En prod,
+> `deletion_protection` et le snapshot final RDS empêchent une destruction accidentelle ; il faut
+> les lever explicitement. **En l'état, rien n'est déployé : aucun coût.**
+
 ---
 
 ## 5. Ce que ce projet démontre
@@ -183,10 +189,11 @@ Aucune clé longue durée n'existe.
 **Q2 — Comment garantissez-vous le moindre privilège et l'absence de secrets en dur ?**
 Toutes les politiques IAM sont écrites en ressources/actions explicites ; les rares `*` (ex.
 `ecr:GetAuthorizationToken`, `ecs:RegisterTaskDefinition`) sont **imposés par l'API AWS** et commentés.
-Les secrets ne transitent jamais en clair : Secrets Manager stocke des placeholders renseignés
-hors Terraform, le mot de passe RDS est généré et géré par AWS, et le conteneur reçoit ses secrets
-via le mécanisme `secrets` d'ECS (jamais dans les variables d'environnement en clair). Checkov,
-Gitleaks et Trivy verrouillent le tout en CI.
+Les secrets ne transitent jamais en clair : le mot de passe RDS est généré et géré par AWS dans
+Secrets Manager, et le conteneur le reçoit via le mécanisme `secrets` d'ECS, **injecté par clé JSON**
+(`DB_USERNAME`/`DB_PASSWORD`) — jamais dans les variables d'environnement en clair. Le rôle
+d'exécution n'a le droit de lire que ces ARNs précis. Checkov, Gitleaks et Trivy verrouillent le
+tout en CI.
 
 **Q3 — Comment isolez-vous dev et prod, et comment évitez-vous d'écraser un environnement ?**
 Chaque environnement est une racine Terraform distincte avec un **state séparé** (clés
@@ -204,7 +211,7 @@ state.
 app/                      API Go + Dockerfile multi-stage non-root
 ci/                       templates GitLab CI réutilisables (build/test/scan/deploy)
 infra/terraform/
-  bootstrap/              backend S3+DynamoDB chiffré + provider OIDC GitLab
+  bootstrap/              state S3+DynamoDB chiffré + OIDC GitLab + ECR partagé
   modules/                vpc · ecr · secrets · rds · ecs_service · iam_oidc_role
   environments/           dev · prod (states isolés, backend partiel)
 .gitlab-ci.yml            orchestrateur du pipeline

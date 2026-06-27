@@ -11,7 +11,8 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
-.terraform.lock.hcl
+# NB : .terraform.lock.hcl est VOLONTAIREMENT versionné (verrouillage des
+# providers : reproductibilité + supply-chain). Il n'est donc pas ignoré.
 
 # Build / Go
 /app/bin/
