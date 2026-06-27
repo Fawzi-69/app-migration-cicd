@@ -4,8 +4,8 @@ output "alb_dns_name" {
 }
 
 output "ecr_repository_url" {
-  description = "Dépôt ECR où pousser l'image (utilisé par la CI)."
-  value       = module.ecr.repository_url
+  description = "Dépôt ECR partagé où pousser l'image (créé par le bootstrap)."
+  value       = data.aws_ecr_repository.app.repository_url
 }
 
 output "ecs_cluster_name" {

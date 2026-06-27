@@ -145,6 +145,16 @@ resource "aws_dynamodb_table" "tf_locks" {
   }
 }
 
+# --- Registre d'images (ressource PARTAGÉE entre environnements) ------------
+# ECR est account/région-global : un seul dépôt sert dev et prod (tags d'images
+# distincts par commit). Le créer ici évite que les states dev et prod ne se
+# disputent la même ressource.
+module "ecr" {
+  source = "../modules/ecr"
+
+  name = var.project
+}
+
 # --- Fournisseur OIDC GitLab ------------------------------------------------
 # Permet à la CI GitLab d'échanger son jeton OIDC contre des identifiants AWS
 # temporaires (sts:AssumeRoleWithWebIdentity). Aucune clé d'accès statique.

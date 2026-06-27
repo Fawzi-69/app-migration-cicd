@@ -8,6 +8,7 @@ Cette racine crée les ressources socle, **une seule fois**, avec un state **loc
 | Bucket S3 (versionné, chiffré KMS, accès public bloqué, TLS obligatoire) | Stockage des states Terraform des environnements |
 | Table DynamoDB (`LockID`, PITR, chiffrée) | Verrou anti-applies concurrents |
 | Fournisseur OIDC GitLab | Authentification CI → AWS sans clé statique |
+| Dépôt ECR partagé | Registre d'images commun à dev/prod (évite une collision entre states) |
 | Clé KMS + alias | Chiffrement des states |
 
 ## Application (manuelle, hors CI)

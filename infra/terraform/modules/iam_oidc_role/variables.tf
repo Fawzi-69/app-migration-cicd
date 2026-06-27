@@ -55,6 +55,28 @@ variable "state_kms_key_arn" {
   default     = null
 }
 
+variable "enable_terraform_provisioning" {
+  description = <<-EOT
+    Ajoute au rôle les permissions nécessaires à un `terraform apply` complet de
+    la stack applicative (VPC, ECS, RDS, ALB, logs, autoscaling, secrets).
+    Bornées par région ; les actions IAM sont restreintes au préfixe projet.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "provisioning_region" {
+  description = "Région à laquelle borner les permissions de provisioning (condition aws:RequestedRegion)."
+  type        = string
+  default     = null
+}
+
+variable "project_prefix" {
+  description = "Préfixe de nommage du projet ; borne les rôles IAM que la CI peut gérer (anti-escalade)."
+  type        = string
+  default     = null
+}
+
 variable "additional_policy_arns" {
   description = <<-EOT
     Politiques gérées supplémentaires à attacher (ex. permissions Terraform pour

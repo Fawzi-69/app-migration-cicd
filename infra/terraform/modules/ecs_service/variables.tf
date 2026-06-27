@@ -86,6 +86,16 @@ variable "container_secrets" {
   default     = {}
 }
 
+variable "secret_read_arns" {
+  description = <<-EOT
+    ARNs de BASE des secrets que le rôle d'exécution doit pouvoir lire (sans le
+    suffixe ":clé-json::" éventuellement utilisé dans container_secrets). Permet
+    d'autoriser la lecture du secret RDS géré par AWS injecté par clé.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "kms_key_arn" {
   description = "ARN de la clé KMS chiffrant les secrets/logs (pour autoriser kms:Decrypt). Optionnel."
   type        = string

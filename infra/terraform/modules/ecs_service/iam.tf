@@ -33,13 +33,13 @@ resource "aws_iam_role_policy_attachment" "execution_managed" {
 # Lecture des secrets injectés + déchiffrement KMS associé, limités aux ARNs
 # réellement utilisés (aucun wildcard de ressource).
 data "aws_iam_policy_document" "execution_secrets" {
-  count = length(var.container_secrets) > 0 ? 1 : 0
+  count = length(var.secret_read_arns) > 0 ? 1 : 0
 
   statement {
     sid       = "ReadInjectedSecrets"
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = distinct(values(var.container_secrets))
+    resources = distinct(var.secret_read_arns)
   }
 
   dynamic "statement" {
@@ -54,7 +54,7 @@ data "aws_iam_policy_document" "execution_secrets" {
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  count  = length(var.container_secrets) > 0 ? 1 : 0
+  count  = length(var.secret_read_arns) > 0 ? 1 : 0
   name   = "${var.name}-read-secrets"
   role   = aws_iam_role.execution.id
   policy = data.aws_iam_policy_document.execution_secrets[0].json

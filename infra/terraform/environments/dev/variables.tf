@@ -117,6 +117,12 @@ variable "rds_deletion_protection" {
   default     = true
 }
 
+variable "rds_skip_final_snapshot" {
+  description = "Ignorer le snapshot final à la destruction (true en dev, false en prod)."
+  type        = bool
+  default     = true
+}
+
 # --- CI/CD OIDC -------------------------------------------------------------
 variable "gitlab_project_path" {
   description = "Chemin du projet GitLab (groupe/projet) autorisé à assumer le rôle CI."

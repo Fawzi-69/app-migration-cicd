@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // newTestRouter monte le routeur avec un logger silencieux.
@@ -32,23 +34,47 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestReadyz(t *testing.T) {
+	// Faux service "base de données" : un listener TCP local joignable.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("impossible d'ouvrir le listener de test : %v", err)
+	}
+	defer ln.Close()
+	host, port, _ := net.SplitHostPort(ln.Addr().String())
+
 	cases := []struct {
 		name     string
-		dbURL    string
+		cfg      config
 		wantCode int
 	}{
-		{"sans base de données", "", http.StatusServiceUnavailable},
-		{"avec base de données", "postgres://localhost/db", http.StatusOK},
+		{"db non configurée", config{}, http.StatusServiceUnavailable},
+		{"db joignable", config{dbHost: host, dbPort: port}, http.StatusOK},
+		{"db injoignable", config{dbHost: "127.0.0.1", dbPort: "1"}, http.StatusServiceUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			newTestRouter(config{dbURL: tc.dbURL}).ServeHTTP(rr, req)
+			newTestRouter(tc.cfg).ServeHTTP(rr, req)
 			if rr.Code != tc.wantCode {
 				t.Errorf("code attendu %d, obtenu %d", tc.wantCode, rr.Code)
 			}
 		})
+	}
+}
+
+func TestCheckTCP(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener : %v", err)
+	}
+	defer ln.Close()
+
+	if err := checkTCP(ln.Addr().String(), time.Second); err != nil {
+		t.Errorf("cible joignable attendue, erreur : %v", err)
+	}
+	if err := checkTCP("127.0.0.1:1", 200*time.Millisecond); err == nil {
+		t.Error("erreur attendue sur cible injoignable")
 	}
 }
 

@@ -17,3 +17,13 @@ output "gitlab_oidc_provider_arn" {
   description = "ARN du fournisseur OIDC GitLab (consommé par les rôles de déploiement)."
   value       = aws_iam_openid_connect_provider.gitlab.arn
 }
+
+output "ecr_repository_url" {
+  description = "URL du dépôt ECR partagé (utilisée par la CI pour pousser l'image)."
+  value       = module.ecr.repository_url
+}
+
+output "ecr_repository_arn" {
+  description = "ARN du dépôt ECR partagé (référencé par les rôles CI des environnements)."
+  value       = module.ecr.repository_arn
+}

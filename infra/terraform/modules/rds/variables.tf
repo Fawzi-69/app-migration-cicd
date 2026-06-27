@@ -13,11 +13,6 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
-variable "ingress_security_group_ids" {
-  description = "SG autorisés à se connecter au port PostgreSQL (typiquement le SG des tâches ECS)."
-  type        = list(string)
-}
-
 variable "engine_version" {
   description = "Version majeure.mineure de PostgreSQL."
   type        = string
@@ -82,6 +77,15 @@ variable "port" {
   description = "Port d'écoute PostgreSQL."
   type        = number
   default     = 5432
+}
+
+variable "skip_final_snapshot" {
+  description = <<-EOT
+    true  : pas de snapshot final à la destruction (pratique en dev).
+    false : un snapshot final est pris (recommandé en prod, anti perte de données).
+  EOT
+  type        = bool
+  default     = true
 }
 
 variable "monitoring_interval" {

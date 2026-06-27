@@ -39,16 +39,9 @@ resource "aws_security_group" "this" {
   tags        = { Name = "${var.identifier}-rds" }
 }
 
-# Entrée : uniquement depuis les SG fournis (tâches ECS), sur le port DB.
-resource "aws_vpc_security_group_ingress_rule" "from_app" {
-  count                        = length(var.ingress_security_group_ids)
-  security_group_id            = aws_security_group.this.id
-  description                  = "PostgreSQL depuis le SG applicatif"
-  referenced_security_group_id = var.ingress_security_group_ids[count.index]
-  ip_protocol                  = "tcp"
-  from_port                    = var.port
-  to_port                      = var.port
-}
+# La règle d'entrée (depuis le SG des tâches ECS) est posée par l'environnement,
+# et non ici : cela évite une dépendance circulaire entre les modules rds et
+# ecs_service (ce module n'expose que son SG ; l'appelant câble le flux).
 
 # --- Instance ---------------------------------------------------------------
 resource "aws_db_instance" "this" {
@@ -92,6 +85,7 @@ resource "aws_db_instance" "this" {
   monitoring_role_arn = var.monitoring_interval > 0 ? aws_iam_role.monitoring.arn : null
 
   deletion_protection = var.deletion_protection
-  # En démo on n'exige pas de snapshot final ; à activer en prod réelle.
-  skip_final_snapshot = true
+  skip_final_snapshot = var.skip_final_snapshot
+  # Identifiant du snapshot final (requis quand skip_final_snapshot = false).
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.identifier}-final"
 }

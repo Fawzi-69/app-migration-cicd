@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -32,9 +33,11 @@ type config struct {
 	port    string
 	env     string
 	version string
-	// dbURL n'est lu que pour valider sa présence (sonde readiness). Sa valeur
-	// n'est jamais journalisée.
-	dbURL string
+	// Coordonnées de la base. L'hôte/port viennent de variables d'environnement
+	// (sortie RDS) ; les identifiants (DB_USERNAME/DB_PASSWORD) sont injectés par
+	// ECS depuis le secret RDS et ne sont jamais journalisés.
+	dbHost string
+	dbPort string
 }
 
 func loadConfig() config {
@@ -42,7 +45,8 @@ func loadConfig() config {
 		port:    getenv("PORT", "8080"),
 		env:     getenv("APP_ENV", "local"),
 		version: getenv("APP_VERSION", version),
-		dbURL:   os.Getenv("DATABASE_URL"),
+		dbHost:  os.Getenv("DB_HOST"),
+		dbPort:  getenv("DB_PORT", "5432"),
 	}
 }
 
@@ -105,14 +109,21 @@ func newRouter(cfg config, logger *slog.Logger) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	// Sonde de disponibilité (readiness) : les dépendances requises sont là.
-	// Ici, on exige la présence de l'URL de base de données injectée par
-	// Secrets Manager. Tant qu'elle manque, l'instance n'est pas prête.
+	// Sonde de disponibilité (readiness) : la base est configurée ET joignable.
+	// On ouvre une connexion TCP vers RDS (sans driver SQL) : l'instance n'est
+	// déclarée prête que si la base répond réellement.
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
-		if cfg.dbURL == "" {
+		if cfg.dbHost == "" {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 				"status": "not-ready",
 				"reason": "configuration base de données absente",
+			})
+			return
+		}
+		if err := checkTCP(net.JoinHostPort(cfg.dbHost, cfg.dbPort), 2*time.Second); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status": "not-ready",
+				"reason": "base de données injoignable",
 			})
 			return
 		}
@@ -159,6 +170,17 @@ func runHealthcheck(port string) int {
 		return 1
 	}
 	return 0
+}
+
+// checkTCP ouvre puis ferme une connexion TCP vers addr. Retourne une erreur si
+// la cible est injoignable dans le délai imparti. Sert de sonde de disponibilité
+// de la base sans embarquer de pilote SQL.
+func checkTCP(addr string, timeout time.Duration) error {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -18,6 +18,7 @@ memory                  = 1024
 rds_instance_class      = "db.t4g.small"
 rds_multi_az            = true
 rds_deletion_protection = true
+rds_skip_final_snapshot = false # prod : snapshot final obligatoire
 
 # CI/CD : déploiement prod déclenché depuis la branche principale.
 gitlab_project_path = "fawzi/app-migration-cicd"
