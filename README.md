@@ -5,6 +5,13 @@ conteneurisation, infrastructure cible en Infrastructure-as-Code, industrialisat
 DevSecOps et exploitation des conteneurs. Le dépôt est conçu pour être **auto-suffisant** :
 tout se comprend en le lisant, sans réunion.
 
+> **CI/CD GitLab par conception, dépôt hébergé sur GitHub** (visibilité portfolio). Les pipelines
+> (`.gitlab-ci.yml`, `ci/*.gitlab-ci.yml`) ciblent GitLab CI ; pour les exécuter, importer le dépôt
+> dans un projet GitLab. Le code applicatif et l'IaC sont indépendants de la plateforme CI.
+>
+> **Valeurs d'environnement.** Les `terraform.tfvars` réels ne sont pas versionnés : copier le
+> gabarit avant tout `plan`/`apply` — `cp terraform.tfvars.example terraform.tfvars`.
+
 ---
 
 ## 1. Objectif

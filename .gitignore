@@ -32,3 +32,8 @@ checkov-report.*
 Thumbs.db
 .idea/
 .vscode/
+
+# Valeurs d'environnement réelles : non versionnées (copier depuis .example)
+terraform.tfvars
+*.auto.tfvars
+!*.tfvars.example
